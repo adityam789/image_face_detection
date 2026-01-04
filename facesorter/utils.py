@@ -11,10 +11,15 @@ import pillow_heif
 pillow_heif.register_heif_opener()
 
 def is_image_file(filename: str) -> bool:
+    """Check if a file is a supported image format."""
     SUPPORTED_FORMATS = ('.jpg', '.jpeg', '.png', '.heic', '.JPG', '.JPEG', '.PNG', '.HEIC')
     return filename.lower().endswith(SUPPORTED_FORMATS)
 
 def load_image(image_path: str) -> Image.Image:
+    """
+    Load an image from path, handling rotation and format conversion.
+    Supports HEIC via pillow_heif.
+    """
     try:
         img = Image.open(image_path)
         img = img.convert('RGB')
@@ -25,9 +30,22 @@ def load_image(image_path: str) -> Image.Image:
         raise
 
 def ensure_dir(path: str) -> None:
+    """Ensure directory exists, creating it if necessary."""
     os.makedirs(path, exist_ok=True)
 
 def copy_image_to_person_folder(src_path: str, dest_dir: str, person_id: str, filename: str) -> str:
+    """
+    Copy an image to a person's specific subfolder.
+    
+    Args:
+        src_path: Source image path
+        dest_dir: Root output directory
+        person_id: Person identifier (folder name)
+        filename: Destination filename
+        
+    Returns:
+        str: Path to destination file
+    """
     person_folder = os.path.join(dest_dir, person_id)
     ensure_dir(person_folder)
     dest_path = os.path.join(person_folder, filename)
@@ -36,6 +54,7 @@ def copy_image_to_person_folder(src_path: str, dest_dir: str, person_id: str, fi
     return dest_path
 
 def get_image_files(source_dir: str) -> List[str]:
+    """Recursively find all supported image files in a directory."""
     files = []
     for root, _, filenames in os.walk(source_dir):
         for fname in filenames:

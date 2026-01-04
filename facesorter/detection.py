@@ -8,11 +8,18 @@ import insightface
 import numpy as np
 
 def get_face_model() -> insightface.app.FaceAnalysis:
+    """Initialize and return the InsightFace analysis model."""
     model = insightface.app.FaceAnalysis(providers=['CPUExecutionProvider'])
     model.prepare(ctx_id=0)
     return model
 
 def detect_faces_and_embeddings(model: insightface.app.FaceAnalysis, image: Image.Image) -> List[Dict[str, Any]]:
+    """
+    Detect faces in an image and extract embeddings.
+    
+    Returns:
+        List of dicts containing 'box', 'embedding', 'score', 'face_idx'.
+    """
     # insightface expects numpy array in BGR
     img_np = np.array(image)[:, :, ::-1]
     faces = model.get(img_np)
@@ -29,5 +36,6 @@ def detect_faces_and_embeddings(model: insightface.app.FaceAnalysis, image: Imag
     return results
 
 def extract_face(img: Image.Image, box: List[int]) -> Image.Image:
+    """Crop face from image using bounding box."""
     x1, y1, x2, y2 = box
     return img.crop((x1, y1, x2, y2))

@@ -11,6 +11,22 @@ from .clustering import cluster_embeddings
 import os
 
 def process_images(source_dir: str, output_dir: str, cluster_threshold: float, confidence: float, nms_threshold: float):
+    """
+    Main pipeline for sorting faces.
+    
+    1. Scan source images.
+    2. Detect faces and extract embeddings.
+    3. Filter by confidence.
+    4. Cluster embeddings to find unique identities.
+    5. Copy images to folders named by Person ID.
+    
+    Args:
+        source_dir: Input directory containing images
+        output_dir: Output directory for results
+        cluster_threshold: DBSCAN distance threshold (0.0-1.0)
+        confidence: Face detection confidence filter (0.0-1.0)
+        nms_threshold: Non-maximum suppression threshold (unused in insightface app, but kept for config compat)
+    """
     image_files = get_image_files(source_dir)
     logging.info(f"Found {len(image_files)} image files in {source_dir}")
     face_model = get_face_model()

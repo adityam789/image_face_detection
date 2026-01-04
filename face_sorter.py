@@ -13,6 +13,12 @@ from facesorter.finder import find_matches
 from facesorter.utils import ensure_dir
 
 def setup_logging(log_path: str) -> None:
+    """
+    Configures logging to write to both file and stdout.
+
+    Args:
+        log_path (str): Path to the log file.
+    """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
@@ -24,6 +30,15 @@ def setup_logging(log_path: str) -> None:
     )
 
 def load_config(config_path: str):
+    """
+    Loads configuration from an INI file.
+
+    Args:
+        config_path (str): Path to the configuration file.
+
+    Returns:
+        configparser.SectionProxy: The DEFAULT section of the config.
+    """
     config = configparser.ConfigParser()
     config.read(config_path)
     return config['DEFAULT'] if 'DEFAULT' in config else {}
