@@ -1,0 +1,9 @@
+# Face Sorter Requirements
+insightface
+scikit-learn
+pillow
+pillow-heif
+tqdm
+numpy
+matplotlib
+onnxruntime

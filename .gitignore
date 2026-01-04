@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+env/
+venv/
+*.jpg
+*.png
+*.log
+!debug_faces_labeled.jpg
+processing_log.txt
+sorted_faces/
+found_faces/
+test_dummy/
+output/
