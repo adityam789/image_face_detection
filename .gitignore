@@ -1,15 +1,38 @@
+# Python
 __pycache__/
-*.pyc
-.DS_Store
+*.py[cod]
+*.egg-info/
+build/
+dist/
 .venv/
-env/
 venv/
-*.jpg
-*.png
+env/
+
+# Tooling caches and coverage
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Generated outputs
 *.log
-!debug_faces_labeled.jpg
 processing_log.txt
 sorted_faces/
 found_faces/
-test_dummy/
 output/
+test_dummy/
+detections.jpg
+
+# Personal photos: never commit these (debug output contains real faces)
+sample_data/
+debug_faces_labeled*.jpg
+/*.heic
+/*.HEIC
+/*.heif
+/*.HEIF

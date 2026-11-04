@@ -1,9 +1,10 @@
-# Face Sorter Requirements
-insightface
-scikit-learn
-pillow
-pillow-heif
-tqdm
-numpy
-matplotlib
-onnxruntime
+# Runtime dependencies, mirrored from pyproject.toml (the source of truth; keep in sync).
+# Kept as a plain list rather than "-e ." so it works from any directory.
+# For development: pip install -e ".[dev]"
+insightface>=0.7
+onnxruntime>=1.16
+numpy>=1.23
+scikit-learn>=1.2
+pillow>=10.0
+pillow-heif>=0.13
+tqdm>=4.60
