@@ -1,0 +1,11 @@
+"""
+facesorter/__main__.py
+Enables ``python -m facesorter``.
+"""
+
+import sys
+
+from .cli import main
+
+if __name__ == "__main__":
+    sys.exit(main())
