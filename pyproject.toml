@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "facesorter"
+dynamic = ["version"]
+description = "Cluster photos by person or find every photo of one person, using InsightFace."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Aditya Maheshwari" }]
+keywords = ["face-recognition", "clustering", "insightface", "photos", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+dependencies = [
+    # Current releases ship wheels. Only the old 0.7.x line is sdist-only
+    # (needs a C/C++ compiler), and pip prefers the newest release by default.
+    "insightface>=0.7",
+    "onnxruntime>=1.16",
+    "numpy>=1.23",
+    "scikit-learn>=1.2",
+    "pillow>=10.0",
+    "pillow-heif>=0.13",
+    "tqdm>=4.60",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff~=0.17",
+]
+
+[project.urls]
+Homepage = "https://github.com/adityam789/image_face_detection"
+Issues = "https://github.com/adityam789/image_face_detection/issues"
+
+[project.scripts]
+facesorter = "facesorter.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "facesorter.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["facesorter*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["facesorter"]
