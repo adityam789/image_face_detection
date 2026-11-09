@@ -44,6 +44,29 @@ dev = [
     "pytest-cov>=4.1",
     "ruff~=0.17",
 ]
+# Photo search (needs Python >= 3.10 because of its dependencies).
+# search-core is the light, CI-friendly part; search adds the model and UI runtimes.
+search-core = [
+    "scipy>=1.9; python_version >= '3.10'",
+    "geonamescache>=3.0; python_version >= '3.10'",
+    "dateparser>=1.2; python_version >= '3.10'",
+    "tokenizers>=0.20; python_version >= '3.10'",
+    "huggingface_hub>=0.25; python_version >= '3.10'",
+]
+search = [
+    "facesorter[search-core]",
+    "open_clip_torch>=3.0; python_version >= '3.10'",
+    "torch>=2.2; python_version >= '3.10'",
+    "gradio>=6.0; python_version >= '3.10'",
+]
+# Local LLM runtimes for query parsing; install one. MLX is Apple-silicon only.
+search-mlx = [
+    "mlx-lm>=0.20; python_version >= '3.11' and sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+search-llama = [
+    "llama-cpp-python>=0.3; python_version >= '3.10'",
+    "huggingface_hub>=0.25; python_version >= '3.10'",
+]
 
 [project.urls]
 Homepage = "https://github.com/adityam789/image_face_detection"

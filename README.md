@@ -1,6 +1,6 @@
 # Face Sorter & Finder
 
-Group a messy photo folder by person, or pull out every photo of one specific person, using InsightFace face embeddings. Runs locally on CPU.
+Group a messy photo folder by person, or pull out every photo of one specific person, using InsightFace face embeddings. Runs locally on CPU. It can also index a photo library and search it in plain language ("beach at sunset in Lisbon last summer"), see [Photo search](#photo-search).
 
 [![CI](https://github.com/adityam789/image_face_detection/actions/workflows/ci.yml/badge.svg)](https://github.com/adityam789/image_face_detection/actions/workflows/ci.yml)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)
@@ -12,8 +12,9 @@ Group a messy photo folder by person, or pull out every photo of one specific pe
 | --- | --- | --- |
 | `facesorter sort` | A folder of photos | Copies each photo into `Person_N/` folders, one per distinct face cluster, plus a `report.txt` |
 | `facesorter find` | A folder of reference photos of one person and a folder to search | Copies every photo in which that person appears into one output folder |
+| `facesorter index`, `search`, `serve`, `people`, `stats`, `eval` | A photo library, then queries in plain language | Photo search: a local index, a command-line and web search, named people, and an evaluation report. Needs Python 3.10+ and the `[search]` extra, see [Photo search](#photo-search) |
 
-Supported inputs: `.jpg`, `.jpeg`, `.png` and `.heic` (any letter case), found recursively. EXIF orientation is applied before detection, so sideways phone photos work.
+Supported inputs for `sort` and `find`: `.jpg`, `.jpeg`, `.png` and `.heic` (any letter case), found recursively. EXIF orientation is applied before detection, so sideways phone photos work. (Photo search also reads `.heif`.)
 
 ## How it works
 
@@ -41,7 +42,7 @@ More detail is in [docs/architecture.md](docs/architecture.md).
 
 ## Installation
 
-Requires Python 3.9 or newer.
+`sort` and `find` require Python 3.9 or newer. Photo search requires Python 3.10 or newer and an extra (see [Photo search](#photo-search)).
 
 ```bash
 git clone https://github.com/adityam789/image_face_detection.git
@@ -117,7 +118,79 @@ photos/trip/img_001.jpg
 
 `find` writes the matching photos straight into the output directory (no subfolders) and no `report.txt`; its summary line is in `processing_log.txt`.
 
+## Photo search
+
+Natural-language search over your own photo library, on your own machine. You index a folder once, then ask for photos the way you would describe them:
+
+```text
+beach at sunset in Lisbon last summer
+Bob at the beach in July 2023
+snow, Banff, February 2022
+cake and candles two years ago
+```
+
+Each query is split in two. The **date**, **place** and **people** parts become exact filters ("last summer" is a date range, "Lisbon" is matched against the place each photo was labelled with from its GPS data, "Bob" is a person you have named). What remains (`beach at sunset`) is **visual text** that is ranked against the pictures with SigLIP 2, an image-text embedding model. Dates, places and names are never left to the picture model, which is unreliable on them.
+
+Six commands: `index` (build or update the index), `search`, `serve` (local web app), `people` (find and name people), `stats` (what the index contains) and `eval` (a quality report that needs no labels).
+
+### Install
+
+```bash
+pip install "facesorter[search]"      # Python 3.10 or newer
+```
+
+That installs the search stack (PyTorch and open_clip for indexing, onnxruntime for queries, an offline place database, Gradio). Understanding the wording of a query works with no language model at all, using deterministic rules. For more forgiving parsing add one small local model runtime: `pip install "facesorter[search-mlx]"` (Apple-silicon Macs, Python 3.11+) or `pip install "facesorter[search-llama]"` (any OS). On Python 3.9 the extras install nothing and the search commands say so; `sort` and `find` are unaffected.
+
+### Quick start
+
+```bash
+# Index a folder. The first run downloads the image model (about 1.5 GB); re-runs only process new and changed photos.
+facesorter index ~/Pictures
+
+# Search in natural language...
+facesorter search "beach at sunset in Lisbon last summer"
+
+# ...or with explicit filters
+facesorter search "sunset" --place Lisbon --from 2023-06 --to 2023-08 -k 20
+
+# The local web app, at http://127.0.0.1:7860
+facesorter serve
+
+# Name people so that "with Bob" works (uses the same face model as sort/find)
+facesorter people scan
+facesorter people cluster
+facesorter people list
+facesorter people name 3 Bob
+facesorter search "Bob at the beach"
+```
+
+By default the index lives in `~/.facesorter/index.sqlite`; set `FACESORTER_INDEX` or pass `--index PATH` to change it.
+
+### What happens with wording it cannot use
+
+The search asks once and then tells you, and it never filters on something it did not understand. If part of a query looks like a date, place or name but cannot be turned into a filter (`since 2020`, `not in summer`, `3/4/2024`, Diwali, a name nobody has been given), then in a terminal you are asked to reword it, and you can press Enter to skip. Otherwise, or when you skip, the line `I couldn't understand "since 2020" as a date, so I searched without it.` is printed and the search runs without that filter. Open-ended dates (`since`, `before`, `early`), exclusions, ambiguous numeric dates and non-English date words are deliberately not guessed; use `--from`/`--to`. The details are in [docs/search.md](docs/search.md#dates).
+
+### Privacy
+
+- Everything is local. Photos, embeddings, queries and the index never leave your machine, and there is no telemetry.
+- The only network access is one-time model downloads: SigLIP 2 (about 1.5 GB for indexing and about 0.6 GB for the query side) and the optional language model (about 0.9 to 1.1 GB) from the Hugging Face Hub, and InsightFace's `buffalo_l` pack from GitHub the first time faces are scanned. After that it works offline.
+- The web app binds to `127.0.0.1`, checks the `Host` and `Origin` headers, and serves **only a cache of small thumbnails**, never the library or the original files. Any other host is refused unless you pass `--allow-remote`.
+- The index (`~/.facesorter/index.sqlite`) and thumbnails (`~/.facesorter/thumbs`) are derived from your photos. They are git-ignored in this repository (`.facesorter/`, `*.sqlite`, `*.sqlite3`, `*.db`, `feedback*.jsonl`); do not share or commit them.
+
+### Limitations, honestly
+
+- Visual ranking is only as good as the model. On COCO 5k, a public image-text benchmark, SigLIP 2 B/16 reaches 53.2% text-to-image Recall@1 (SigLIP 47.8%, OpenCLIP DataComp B/16 40.2%, original OpenAI CLIP B/16 30.4%). Your own photos are different from COCO captions, so expect wrong hits, especially on abstract or very specific queries.
+- The query-parsing figures I quote (date accuracy of a 1.5B model rising from 43-63% to 83-100% when it only copies the date phrase and code resolves it) come from small hand-labelled sets that were also used while tuning. They are optimistic.
+- Date filters need an EXIF or folder-name date, and place filters need GPS; photos without them never match those filters. English queries and still photos only. One date range and one place per query.
+- Face grouping reuses the single-linkage clustering of `sort` (one ambiguous face can merge two people) and is capped at 10,000 faces. It is not benchmarked.
+- Indexing a large library takes a while (decoding big HEIC files dominates); searching is fast. Exact search takes single-digit milliseconds at around 100,000 photos.
+- A renamed or moved photo counts as a new photo and is embedded again.
+
+Full guide: [docs/search.md](docs/search.md). Design and decisions: [docs/search-design.md](docs/search-design.md).
+
 ## Command reference
+
+This section covers `sort` and `find`; the search commands are in [docs/search.md](docs/search.md#commands).
 
 Global options (before the subcommand): `--version`, `-h/--help`, `-v/--verbose`.
 
@@ -205,17 +278,17 @@ Thresholds are cosine distances between embeddings: 0 means identical direction,
 
 ## Limitations
 
-- Not benchmarked: there are no accuracy or speed numbers here, and results depend heavily on photo quality. Expect mistakes, especially for children, large age gaps, masks, sunglasses and low-resolution faces, and review the output.
+- `sort` and `find` are not benchmarked: there are no accuracy or speed numbers for them here, and results depend heavily on photo quality. Expect mistakes, especially for children, large age gaps, masks, sunglasses and low-resolution faces, and review the output.
 - Chaining and the O(N^2) memory use described above.
 - CPU only; large libraries are slow. Each image is fully decoded and run through the model, and InsightFace's `buffalo_l` pack also bundles landmark and gender/age models that this tool does not use.
 - `.heif` and other formats are not scanned; only `.jpg`, `.jpeg`, `.png`, `.heic`.
-- `sort` has no incremental mode: every run reclusters everything.
+- `sort` has no incremental mode: every run reclusters everything. (Photo search is incremental, and keeps names across re-clustering, see [Photo search](#photo-search).)
 
 ## Privacy and licensing
 
-This tool does face recognition on photos that usually contain other people. Only run it on photos you have the right to process, and get consent where appropriate (laws on biometric data vary by region). Processing is local: the code in this repository makes no network requests; the only network access is InsightFace's one-time download of the model weights. Output folders contain copies of your photos, so protect them accordingly.
+This tool does face recognition on photos that usually contain other people. Only run it on photos you have the right to process, and get consent where appropriate (laws on biometric data vary by region). Processing is local: the code in this repository sends no photo, embedding or query anywhere. The only network access is one-time downloads of model weights: InsightFace's `buffalo_l` pack (for `sort`, `find` and `people scan`) and, for photo search, SigLIP 2 and an optional small language model from the Hugging Face Hub. Output folders contain copies of your photos, and the search index and thumbnail cache are derived from them, so protect them accordingly.
 
-The InsightFace Python library is MIT licensed, but its README states that the pretrained models it provides (including the auto-downloaded `buffalo_l` pack) are available for non-commercial research purposes only. Check InsightFace's current license terms before any commercial use. This project's own code is MIT licensed, see [LICENSE](LICENSE).
+The InsightFace Python library is MIT licensed, but its README states that the pretrained models it provides (including the auto-downloaded `buffalo_l` pack) are available for non-commercial research purposes only. Check InsightFace's current license terms before any commercial use. SigLIP 2 and the default Qwen2.5-1.5B-Instruct model used for query parsing are Apache-2.0; place data is from GeoNames (CC BY 4.0). This project's own code is MIT licensed, see [LICENSE](LICENSE).
 
 ## Troubleshooting
 
@@ -229,11 +302,13 @@ The InsightFace Python library is MIT licensed, but its README states that the p
 ## Development
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,search-core]"     # what CI installs; Python 3.10+ for the search part
 ruff check .
 ruff format --check .
 pytest
 ```
+
+`pip install -e ".[dev]"` is enough for `sort` and `find`; the `search-core` extra adds what the search tests need (dates, places, tokenizer). The suite has well over 2,600 tests (`pytest --collect-only -q | tail -1` prints the current number) and needs no model weights, network or real photos. Tests for the web app skip unless Gradio is installed (`.[dev,search]`), and a few tests that load real models are skipped unless `FACESORTER_MODEL_TESTS=1`. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Layout:
 
@@ -250,11 +325,16 @@ facesorter/
   utils.py         image loading, file discovery, safe copying
   paths.py         path comparison helpers
   errors.py        typed exceptions
-tests/             pytest suite using a fake face model (no model weights needed)
+  search/          photo search: index, query parsing, dates, places, people, web app
+                   (see docs/search-design.md for the module map)
+tests/             pytest suite using fake models (no model weights needed)
+  search/          tests for the search package
 scripts/
   visualize_detections.py   draw detected boxes and scores on one image (debug aid)
 docs/
   architecture.md
+  search.md        photo search user guide
+  search-design.md photo search design and decisions
 .github/workflows/ci.yml    CI: lint, format check, tests
 face_sorter.py     thin wrapper around facesorter.cli.main
 config.ini         example settings
@@ -267,7 +347,7 @@ CONTRIBUTING.md
 
 `scripts/visualize_detections.py --image PHOTO --confidence 0.6 --output out.jpg` is a debugging aid that draws detection boxes and scores on an image. Its output contains the faces from the photo you give it, so keep it out of version control (the `.gitignore` already excludes `detections.jpg`).
 
-GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on pushes to `main` and on pull requests, across Python 3.9 to 3.13 on Ubuntu: `pip install -e ".[dev]"`, `ruff check .`, `ruff format --check .`, and `pytest` with coverage for the `facesorter` package. Contribution notes are in [CONTRIBUTING.md](CONTRIBUTING.md); release notes are in [CHANGELOG.md](CHANGELOG.md).
+GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on pushes to `main` and on pull requests, across Python 3.9 to 3.13 on Ubuntu: `pip install -e ".[dev,search-core]"`, `ruff check .`, `ruff format --check .`, and `pytest` with coverage for the `facesorter` package. Contribution notes are in [CONTRIBUTING.md](CONTRIBUTING.md); release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
