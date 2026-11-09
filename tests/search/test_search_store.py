@@ -68,6 +68,16 @@ def brute_force(vecs: dict[int, np.ndarray], query: np.ndarray, allowed, k: int)
     return rows[:k]
 
 
+def same_hits(hits, expected, tol: float = 1e-5) -> bool:
+    """Same ids in the same order, scores equal within ``tol``.
+
+    BLAS builds differ in the last float32 digit, so exact score equality is not portable.
+    """
+    return len(hits) == len(expected) and all(
+        h[0] == e[0] and abs(h[1] - e[1]) <= tol for h, e in zip(hits, expected)
+    )
+
+
 @pytest.fixture
 def library(tmp_path):
     """A small library: 6 photos across places/dates with known faces."""
@@ -281,7 +291,7 @@ def test_delete_and_prune_keep_search_exact(tmp_path):
         alive = {i for i, p in zip(ids, paths) if p in keep}
         assert store.count() == len(alive)
         hits, n = store.top_k(q, None, 100)
-        assert n == len(alive) and hits == brute_force(vecs, q, alive, 100)
+        assert n == len(alive) and same_hits(hits, brute_force(vecs, q, alive, 100))
         # appending after removals still works and the new row is findable
         new_vec = unit(rng)
         (new_id,) = store.upsert_photos([(meta("/p/new.jpg"), None, new_vec)])
@@ -569,12 +579,12 @@ def test_top_k_matches_brute_force_with_and_without_filters(library):
     for _ in range(5):
         q = unit(rng)
         hits, n = store.top_k(q, None, 4)
-        assert n == 6 and hits == brute_force(vecs, q, set(vecs), 4)
+        assert n == 6 and same_hits(hits, brute_force(vecs, q, set(vecs), 4))
         flt = Filters(place=PlaceFilter(country="United States"))
         hits, n = store.top_k(q, flt, 4)
-        assert n == 2 and hits == brute_force(vecs, q, {ids["a"], ids["b"]}, 4)
+        assert n == 2 and same_hits(hits, brute_force(vecs, q, {ids["a"], ids["b"]}, 4))
         hits, n = store.top_k(q, Filters(), 2)  # empty filters == no filters
-        assert n == 6 and hits == brute_force(vecs, q, set(vecs), 2)
+        assert n == 6 and same_hits(hits, brute_force(vecs, q, set(vecs), 2))
 
 
 def test_k_larger_than_pool_and_no_candidates(library):
@@ -630,7 +640,7 @@ def test_gather_and_scan_plans_agree(tmp_path, threshold):
             allowed = set(store.candidate_ids(flt).tolist())
             hits, count = store.top_k(q, flt, 15)
             assert count == len(allowed)
-            assert hits == brute_force(vecs, q, allowed, 15)
+            assert same_hits(hits, brute_force(vecs, q, allowed, 15))
         assert store._plan(10, 100) == ("gather" if threshold >= 0.1 else "scan")
         assert store._plan(100, 100) == ("gather" if threshold >= 1.0 else "scan")
 
@@ -647,7 +657,7 @@ def test_gather_blocks_match_single_block(tmp_path, monkeypatch):
         flt = Filters(date_range=DateRange(date(2023, 1, 1), date(2023, 1, 1)))
         hits, n = store.top_k(q, flt, 10)
         assert n == 50
-        assert hits == brute_force({i: r[2] for i, r in zip(ids, recs)}, q, set(ids), 10)
+        assert same_hits(hits, brute_force({i: r[2] for i, r in zip(ids, recs)}, q, set(ids), 10))
 
 
 def test_search_after_incremental_growth_beyond_capacity(tmp_path):
