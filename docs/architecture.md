@@ -1,6 +1,6 @@
 # Architecture
 
-This page describes how the `facesorter` package is organised, how data moves through it, and how to test it without model weights. For usage see the [README](../README.md).
+This page describes how the `facesorter` package is organised, how data moves through it, and how to test it without model weights. For usage see the [README](../README.md). The photo-search package has its own page, [search-design.md](search-design.md); a short overview is [below](#the-search-package).
 
 ## Modules
 
@@ -17,6 +17,7 @@ This page describes how the `facesorter` package is organised, how data moves th
 | `facesorter/utils.py` | `load_image` (EXIF transpose, RGB, HEIC via `pillow-heif`), `get_image_files` (recursive, sorted, skips the output directory), `unique_filename`, and `copy_image`, which opens the destination exclusively so it never overwrites. |
 | `facesorter/paths.py` | `same_path` and `is_inside`, dependency-free helpers for detecting overlapping source and output directories (symlink- and case-insensitive-filesystem aware). |
 | `facesorter/errors.py` | `FaceSorterError` and subclasses: `ConfigError`, `InvalidPathError`, `NoImagesError`, `NoFacesError`, `CopyError`. |
+| `facesorter/search/` | The photo-search package (see [The search package](#the-search-package)). `cli.py` imports `facesorter.search.cli` and delegates the `index`, `search`, `serve`, `people`, `stats` and `eval` commands to it. |
 | `face_sorter.py` | Thin wrapper that calls `facesorter.cli.main`, kept for `python face_sorter.py ...`. |
 | `scripts/visualize_detections.py` | Standalone debugging aid that draws boxes and scores on one image. Not part of the package. |
 
@@ -45,6 +46,42 @@ flowchart TD
 ```
 
 Per-file problems (an unreadable image, a model failure on one file, a failed copy) are logged and counted, and the run continues. Only whole-run problems raise a `FaceSorterError`: no images, no faces, every copy failed, or invalid paths and configuration.
+
+## The search package
+
+`facesorter/search/` adds natural-language photo search on top of the same CLI. It is a separate
+package with its own dependencies (the `search` extras, Python 3.10+) and shares only a few things with
+`sort` and `find`: the `FaceSorterError` hierarchy and exit-code convention, `facesorter.detection`
+and `facesorter.clustering` (for `people scan` and `people cluster`), `facesorter.utils.load_image`
+and `copy_image`, and the path helpers.
+
+| Area | Modules |
+| --- | --- |
+| Reading the library | `library.py` (find stills), `metadata.py` (EXIF date, GPS, folder dates), `geo.py` (offline gazetteer), `encoders/` (decode, SigLIP 2 image and text, model registry) |
+| The index | `store.py` (SQLite plus an in-memory vector matrix), `indexer.py` (incremental pipeline) |
+| Understanding a query | `dates.py`, `parser.py`, `prompts.py`, `llm/` (MLX and llama.cpp backends) |
+| Answering | `engine.py` (parse, clarify, filter, rank, explain), `people.py`, `evaluate.py` |
+| Front ends | `cli.py`, `ui_logic.py`, `ui.py` (Gradio) |
+| Contracts and tests | `types.py`, `errors.py`, `testing.py` (colour-vocabulary fake encoders, `ScriptedLLM`) |
+
+```mermaid
+flowchart LR
+    CLIM["facesorter.cli.main"] -->|"sort, find"| CORE["pipeline.py, finder.py"]
+    CLIM -->|"index, search, serve, people, stats, eval"| SC["search/cli.py"]
+    SC --> IDX["indexer.py"]
+    SC --> ENG["engine.py"]
+    SC --> PPL["people.py"]
+    PPL -.->|reuses| CORE2["detection.py, clustering.py"]
+    IDX --> ST[("store.py")]
+    ENG --> ST
+    PPL --> ST
+```
+
+Heavy dependencies are imported lazily, so `facesorter --help` works on Python 3.9 even though
+search needs 3.10. Models are reached through a registry in `search/encoders/`; the tests register
+fakes from `search/testing.py`, so the search tests also run without model weights. The data flow,
+the query flow and the reasoning behind the main decisions are in [search-design.md](search-design.md).
+The commands and flags are in [search.md](search.md).
 
 ## Design notes
 
