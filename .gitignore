@@ -36,3 +36,10 @@ debug_faces_labeled*.jpg
 /*.HEIC
 /*.heif
 /*.HEIF
+
+# Photo-search index and caches are derived from personal photos: never commit them
+.facesorter/
+*.sqlite
+*.sqlite3
+*.db
+feedback*.jsonl

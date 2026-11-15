@@ -1,6 +1,8 @@
 """
 facesorter/cli.py
-Command-line interface: ``facesorter sort`` and ``facesorter find``.
+Command-line interface: ``facesorter sort`` and ``facesorter find``, plus the photo-search
+commands (``index``, ``search``, ``serve``, ``people``, ``stats``, ``eval``) from
+``facesorter.search.cli``.
 
 Heavy modules (scikit-learn, InsightFace) are imported only when a command actually
 runs, so ``--help`` and ``--version`` stay fast.
@@ -18,6 +20,7 @@ from .config import DEFAULT_CONFIG_PATH as DEFAULT_CONFIG
 from .config import Settings, load_settings
 from .errors import ConfigError, FaceSorterError, InvalidPathError
 from .paths import is_inside
+from .search import cli as search_cli
 
 LOG_NAME = "processing_log.txt"
 
@@ -48,7 +51,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show debug output")
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{sort,find}")
+    sub = parser.add_subparsers(
+        dest="command",
+        required=True,
+        metavar="{sort,find," + ",".join(search_cli.COMMANDS) + "}",
+    )
 
     p_sort = sub.add_parser(
         "sort", parents=[common], help="Sort a directory of images into person folders"
@@ -62,6 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_find.add_argument("--reference", required=True, help="Directory of reference photos")
     p_find.add_argument("--output", required=True, help="Output directory for found images")
     p_find.add_argument("--threshold", type=float, help="Match threshold (cosine distance)")
+    search_cli.register(sub)
     return parser
 
 
@@ -156,6 +164,8 @@ def main(argv: list[str] | None = None) -> int:
         invalid arguments, paths or configuration.
     """
     args = build_parser().parse_args(argv)
+    if args.command in search_cli.COMMANDS:
+        return search_cli.dispatch(args)
     try:
         _check_paths(args)
         settings = _resolve_settings(args)
